@@ -1,0 +1,1094 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
+<meta name="theme-color" content="#ff7dcd">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<title>💕 LocateUs</title>
+<link rel="manifest" href="manifest.json">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+Thai:wght@300;400;500;600;700&family=DM+Serif+Display:ital@0;1&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+
+<style>
+:root {
+  --pink: #ff7dcd;
+  --pink-light: #ffb3e6;
+  --pink-pale: #fff0fa;
+  --pink-dark: #d94faa;
+  --pink-glow: rgba(255,125,205,0.35);
+  --bg: #0d0a10;
+  --bg2: #140e1a;
+  --bg3: #1c1226;
+  --surface: rgba(255,255,255,0.04);
+  --surface2: rgba(255,255,255,0.08);
+  --border: rgba(255,125,205,0.2);
+  --text: #fff;
+  --text2: rgba(255,255,255,0.6);
+  --text3: rgba(255,255,255,0.35);
+  --green: #4fffb0;
+  --yellow: #ffd166;
+  --red: #ff4f7b;
+  --radius: 20px;
+  --radius-sm: 12px;
+}
+
+* { margin:0; padding:0; box-sizing:border-box; -webkit-tap-highlight-color:transparent; }
+
+body {
+  font-family: 'Noto Sans Thai', sans-serif;
+  background: var(--bg);
+  color: var(--text);
+  min-height: 100dvh;
+  overflow: hidden;
+  position: relative;
+}
+
+/* === AMBIENT BG === */
+.ambient {
+  position: fixed; inset: 0; pointer-events: none; z-index: 0;
+  background:
+    radial-gradient(ellipse 60% 40% at 20% 10%, rgba(255,125,205,0.12) 0%, transparent 70%),
+    radial-gradient(ellipse 50% 60% at 80% 80%, rgba(180,80,255,0.08) 0%, transparent 70%),
+    var(--bg);
+}
+
+/* === SCREENS === */
+.screen { position:fixed; inset:0; z-index:10; display:flex; flex-direction:column; align-items:center; justify-content:center; padding:24px; transition: opacity .4s, transform .4s; }
+.screen.hidden { opacity:0; pointer-events:none; transform: scale(0.96); }
+
+/* === SPLASH === */
+#splash { gap: 16px; }
+.logo-wrap { display:flex; flex-direction:column; align-items:center; gap:8px; margin-bottom: 8px; }
+.logo-heart {
+  font-size: 56px;
+  filter: drop-shadow(0 0 24px var(--pink));
+  animation: heartbeat 2s ease-in-out infinite;
+}
+@keyframes heartbeat {
+  0%,100% { transform: scale(1); }
+  15% { transform: scale(1.15); }
+  30% { transform: scale(1); }
+  45% { transform: scale(1.08); }
+  60% { transform: scale(1); }
+}
+.logo-title {
+  font-family: 'DM Serif Display', serif;
+  font-size: 38px;
+  color: var(--pink);
+  letter-spacing: -1px;
+  text-shadow: 0 0 40px var(--pink-glow);
+}
+.logo-sub { font-size: 13px; color: var(--text3); letter-spacing: 2px; text-transform: uppercase; }
+
+.card {
+  width: 100%; max-width: 380px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 24px;
+  backdrop-filter: blur(20px);
+}
+
+.btn {
+  width: 100%; padding: 15px;
+  border-radius: var(--radius-sm);
+  border: none; cursor: pointer;
+  font-family: inherit; font-size: 15px; font-weight: 600;
+  transition: all .2s;
+  display: flex; align-items: center; justify-content: center; gap: 8px;
+}
+.btn-primary {
+  background: linear-gradient(135deg, var(--pink), var(--pink-dark));
+  color: #fff;
+  box-shadow: 0 8px 24px var(--pink-glow);
+}
+.btn-primary:active { transform: scale(0.97); box-shadow: 0 4px 12px var(--pink-glow); }
+.btn-secondary {
+  background: var(--surface2);
+  color: var(--text2);
+  border: 1px solid var(--border);
+}
+.btn-secondary:active { transform: scale(0.97); }
+
+.input-wrap { margin-bottom: 12px; }
+.input-label { font-size: 12px; color: var(--text3); margin-bottom: 6px; letter-spacing: 0.5px; display: block; }
+input[type=text] {
+  width: 100%; padding: 12px 16px;
+  background: var(--surface2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  color: var(--text);
+  font-family: inherit; font-size: 15px;
+  outline: none;
+  transition: border-color .2s;
+}
+input[type=text]:focus { border-color: var(--pink); }
+input[type=text]::placeholder { color: var(--text3); }
+
+.divider { display:flex; align-items:center; gap:12px; margin: 16px 0; }
+.divider-line { flex:1; height:1px; background: var(--border); }
+.divider-text { font-size: 12px; color: var(--text3); }
+
+/* === MAIN APP === */
+#app { padding: 0; justify-content: flex-start; z-index: 5; }
+
+#map {
+  position: fixed; inset: 0; z-index: 1;
+}
+
+/* Leaflet dark override */
+.leaflet-tile { filter: brightness(0.4) saturate(0.6) hue-rotate(270deg); }
+.leaflet-control-zoom { display: none; }
+.leaflet-control-attribution { display: none; }
+
+/* === TOP BAR === */
+.topbar {
+  position: fixed; top: 0; left: 0; right: 0; z-index: 100;
+  padding: env(safe-area-inset-top, 0) 16px 0;
+  background: linear-gradient(to bottom, rgba(13,10,16,0.95) 60%, transparent);
+}
+.topbar-inner {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 12px 0 16px;
+}
+.room-badge {
+  display: flex; align-items: center; gap: 6px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 100px;
+  padding: 6px 14px;
+  font-size: 13px; color: var(--text2);
+  backdrop-filter: blur(20px);
+}
+.room-badge .dot { width:6px; height:6px; border-radius:50%; background: var(--green); box-shadow: 0 0 6px var(--green); animation: pulse 2s infinite; }
+@keyframes pulse { 0%,100%{opacity:1;} 50%{opacity:0.4;} }
+
+.topbar-actions { display: flex; gap: 8px; }
+.icon-btn {
+  width: 38px; height: 38px; border-radius: 50%;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  display: flex; align-items: center; justify-content: center;
+  cursor: pointer; font-size: 16px;
+  backdrop-filter: blur(20px);
+  transition: all .2s;
+}
+.icon-btn:active { transform: scale(0.9); }
+.icon-btn.danger { background: rgba(255,79,123,0.15); border-color: var(--red); }
+
+/* === PARTNER CARD (top) === */
+.partner-card {
+  position: fixed; top: 0; left: 0; right: 0; z-index: 90;
+  padding-top: calc(env(safe-area-inset-top, 0) + 70px);
+  pointer-events: none;
+  display: flex; justify-content: center;
+}
+.partner-info {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 12px 20px;
+  backdrop-filter: blur(20px);
+  display: flex; align-items: center; gap: 12px;
+  pointer-events: all;
+  min-width: 280px;
+}
+.partner-avatar {
+  width: 44px; height: 44px; border-radius: 50%;
+  background: linear-gradient(135deg, var(--pink), var(--pink-dark));
+  display: flex; align-items: center; justify-content: center;
+  font-size: 20px;
+  box-shadow: 0 0 16px var(--pink-glow);
+  flex-shrink: 0;
+  position: relative;
+}
+.partner-avatar .online-dot {
+  position: absolute; bottom: 1px; right: 1px;
+  width: 10px; height: 10px; border-radius: 50%;
+  background: var(--green); border: 2px solid var(--bg);
+}
+.partner-details { flex: 1; min-width: 0; }
+.partner-name { font-weight: 600; font-size: 15px; margin-bottom: 2px; }
+.partner-meta { font-size: 12px; color: var(--text2); display: flex; gap: 8px; flex-wrap: wrap; }
+.partner-meta span { display: flex; align-items: center; gap: 3px; }
+.partner-status-badge {
+  font-size: 11px; font-weight: 600;
+  padding: 2px 8px; border-radius: 100px;
+  background: rgba(255,125,205,0.15);
+  color: var(--pink);
+  white-space: nowrap;
+}
+
+/* === BOTTOM PANEL === */
+.bottom-panel {
+  position: fixed; bottom: 0; left: 0; right: 0; z-index: 100;
+  padding: 0 16px calc(env(safe-area-inset-bottom, 16px) + 16px);
+  background: linear-gradient(to top, rgba(13,10,16,0.98) 50%, transparent);
+}
+
+/* MY STATUS ROW */
+.my-status-row {
+  display: flex; gap: 8px; margin-bottom: 12px;
+  overflow-x: auto; padding-bottom: 4px;
+  scrollbar-width: none;
+}
+.my-status-row::-webkit-scrollbar { display: none; }
+
+.status-chip {
+  flex-shrink: 0;
+  padding: 8px 14px;
+  border-radius: 100px;
+  border: 1px solid var(--border);
+  background: var(--surface);
+  font-size: 13px; color: var(--text2);
+  cursor: pointer;
+  white-space: nowrap;
+  transition: all .2s;
+  display: flex; align-items: center; gap: 5px;
+}
+.status-chip.active {
+  background: rgba(255,125,205,0.15);
+  border-color: var(--pink);
+  color: var(--pink);
+}
+.status-chip:active { transform: scale(0.95); }
+
+/* MY INFO BAR */
+.my-info-bar {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 14px 18px;
+  backdrop-filter: blur(20px);
+  display: flex; align-items: center; gap: 12px;
+}
+.my-avatar {
+  width: 40px; height: 40px; border-radius: 50%;
+  background: linear-gradient(135deg, #a855f7, #7c3aed);
+  display: flex; align-items: center; justify-content: center;
+  font-size: 18px; flex-shrink: 0;
+}
+.my-details { flex: 1; min-width: 0; }
+.my-name { font-size: 14px; font-weight: 600; margin-bottom: 2px; }
+.my-meta { font-size: 12px; color: var(--text2); display: flex; gap: 10px; }
+
+.action-btns { display: flex; gap: 8px; }
+.action-btn {
+  width: 38px; height: 38px; border-radius: 50%;
+  border: 1px solid var(--border);
+  background: var(--surface2);
+  display: flex; align-items: center; justify-content: center;
+  font-size: 16px; cursor: pointer;
+  transition: all .2s;
+}
+.action-btn:active { transform: scale(0.9); }
+.action-btn.sos {
+  background: rgba(255,79,123,0.15);
+  border-color: var(--red);
+}
+.action-btn.find {
+  background: rgba(255,209,102,0.15);
+  border-color: var(--yellow);
+}
+.action-btn.locate {
+  background: rgba(255,125,205,0.15);
+  border-color: var(--pink);
+}
+
+/* === TOAST === */
+.toast {
+  position: fixed; top: 50%; left: 50%; transform: translate(-50%,-50%) scale(0.8);
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 16px 24px;
+  backdrop-filter: blur(30px);
+  z-index: 999;
+  font-size: 14px; text-align: center;
+  opacity: 0; pointer-events: none;
+  transition: all .3s;
+  max-width: 280px;
+}
+.toast.show { opacity: 1; transform: translate(-50%,-50%) scale(1); }
+.toast-icon { font-size: 32px; margin-bottom: 8px; }
+.toast-title { font-weight: 600; margin-bottom: 4px; }
+.toast-msg { color: var(--text2); font-size: 13px; }
+
+/* === MODAL === */
+.modal-overlay {
+  position: fixed; inset: 0; z-index: 200;
+  background: rgba(0,0,0,0.7);
+  backdrop-filter: blur(8px);
+  display: flex; align-items: flex-end; justify-content: center;
+  opacity: 0; pointer-events: none;
+  transition: opacity .3s;
+}
+.modal-overlay.show { opacity: 1; pointer-events: all; }
+.modal {
+  width: 100%; max-width: 480px;
+  background: var(--bg2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius) var(--radius) 0 0;
+  padding: 24px;
+  padding-bottom: calc(24px + env(safe-area-inset-bottom, 0));
+  transform: translateY(100%);
+  transition: transform .3s cubic-bezier(.4,0,.2,1);
+}
+.modal-overlay.show .modal { transform: translateY(0); }
+.modal-handle { width: 36px; height: 4px; background: var(--border); border-radius: 2px; margin: 0 auto 20px; }
+.modal-title { font-size: 18px; font-weight: 700; margin-bottom: 16px; }
+
+/* battery bar */
+.battery-icon {
+  display: inline-flex; align-items: center; gap: 3px;
+}
+.battery-bar {
+  width: 22px; height: 11px;
+  border: 1.5px solid currentColor;
+  border-radius: 2px;
+  position: relative;
+  display: flex; align-items: center;
+}
+.battery-bar::after {
+  content: '';
+  position: absolute; right: -4px; top: 50%;
+  transform: translateY(-50%);
+  width: 2px; height: 5px;
+  background: currentColor;
+  border-radius: 0 1px 1px 0;
+}
+.battery-fill {
+  height: 7px; border-radius: 1px;
+  margin: 0 1px;
+  transition: width .5s;
+}
+
+/* speed display */
+.speed-display {
+  position: fixed; right: 16px; top: 50%; transform: translateY(-50%);
+  z-index: 90;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 12px 16px;
+  text-align: center;
+  backdrop-filter: blur(20px);
+  display: none;
+}
+.speed-display.visible { display: block; }
+.speed-num { font-family: 'DM Serif Display', serif; font-size: 32px; color: var(--pink); line-height: 1; }
+.speed-unit { font-size: 10px; color: var(--text3); letter-spacing: 1px; margin-top: 2px; }
+
+/* === GEOFENCE SETUP === */
+.geofence-list { display: flex; flex-direction: column; gap: 10px; margin-bottom: 16px; }
+.geofence-item {
+  display: flex; align-items: center; gap: 12px;
+  background: var(--surface2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  padding: 12px 16px;
+}
+.geofence-icon { font-size: 20px; }
+.geofence-info { flex: 1; }
+.geofence-name { font-size: 14px; font-weight: 500; }
+.geofence-addr { font-size: 12px; color: var(--text3); margin-top: 2px; }
+.geofence-toggle {
+  width: 44px; height: 24px; border-radius: 12px;
+  background: var(--surface2); border: 1px solid var(--border);
+  position: relative; cursor: pointer; transition: background .2s;
+  flex-shrink: 0;
+}
+.geofence-toggle.on { background: var(--pink); border-color: var(--pink); }
+.geofence-toggle::after {
+  content: ''; position: absolute; top: 2px; left: 2px;
+  width: 18px; height: 18px; border-radius: 50%;
+  background: #fff; transition: left .2s;
+}
+.geofence-toggle.on::after { left: 22px; }
+
+/* loading */
+.loading-overlay {
+  position: fixed; inset: 0; z-index: 500;
+  background: var(--bg);
+  display: flex; flex-direction: column; align-items: center; justify-content: center;
+  gap: 16px;
+  transition: opacity .5s;
+}
+.loading-overlay.hidden { opacity: 0; pointer-events: none; }
+.loading-spinner {
+  width: 48px; height: 48px; border-radius: 50%;
+  border: 3px solid var(--border);
+  border-top-color: var(--pink);
+  animation: spin 0.8s linear infinite;
+}
+@keyframes spin { to { transform: rotate(360deg); } }
+.loading-text { color: var(--text2); font-size: 14px; }
+
+/* SOS ring animation */
+@keyframes sos-ring {
+  0%,100% { box-shadow: 0 0 0 0 rgba(255,79,123,0.6); }
+  50% { box-shadow: 0 0 0 20px rgba(255,79,123,0); }
+}
+.sos-active { animation: sos-ring 1s infinite; }
+</style>
+</head>
+<body>
+<div class="ambient"></div>
+
+<!-- LOADING -->
+<div class="loading-overlay" id="loading">
+  <div style="font-size:40px;filter:drop-shadow(0 0 20px #ff7dcd)">💕</div>
+  <div class="loading-spinner"></div>
+  <div class="loading-text">กำลังเชื่อมต่อ...</div>
+</div>
+
+<!-- SPLASH / JOIN SCREEN -->
+<div class="screen" id="splash">
+  <div class="logo-wrap">
+    <div class="logo-heart">💕</div>
+    <div class="logo-title">LocateUs</div>
+    <div class="logo-sub">always together</div>
+  </div>
+
+  <div class="card" style="margin-top:8px;">
+    <div class="input-wrap">
+      <label class="input-label">ชื่อของคุณ</label>
+      <input type="text" id="myName" placeholder="ใส่ชื่อเล่น..." maxlength="20">
+    </div>
+    <div class="input-wrap">
+      <label class="input-label">อีโมจิ (ไอคอนของคุณ)</label>
+      <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:4px;" id="emojiPicker">
+        <!-- filled by JS -->
+      </div>
+    </div>
+
+    <button class="btn btn-primary" onclick="createRoom()" style="margin-top:8px;">
+      ✨ สร้าง Room ใหม่
+    </button>
+
+    <div class="divider">
+      <div class="divider-line"></div>
+      <div class="divider-text">หรือ</div>
+      <div class="divider-line"></div>
+    </div>
+
+    <div class="input-wrap">
+      <label class="input-label">Room ID (รับจากอีกฝ่าย)</label>
+      <input type="text" id="roomIdInput" placeholder="เช่น abc123" maxlength="10" style="text-transform:uppercase">
+    </div>
+    <button class="btn btn-secondary" onclick="joinRoom()">
+      🔗 เข้าร่วม Room
+    </button>
+  </div>
+</div>
+
+<!-- MAIN APP -->
+<div class="screen hidden" id="app">
+  <div id="map"></div>
+
+  <!-- TOP BAR -->
+  <div class="topbar">
+    <div class="topbar-inner">
+      <div class="room-badge">
+        <div class="dot"></div>
+        <span>Room: <strong id="roomIdDisplay"></strong></span>
+      </div>
+      <div class="topbar-actions">
+        <div class="icon-btn" onclick="openGeofenceModal()" title="ตั้งพื้นที่">🏠</div>
+        <div class="icon-btn" onclick="copyRoomId()" title="แชร์ Room">🔗</div>
+        <div class="icon-btn danger" onclick="leaveRoom()" title="ออก">✕</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- PARTNER CARD -->
+  <div class="partner-card">
+    <div class="partner-info" id="partnerCard" style="display:none">
+      <div class="partner-avatar" id="partnerAvatarEl">
+        <span id="partnerEmojiEl">👤</span>
+        <div class="online-dot" id="partnerOnlineDot" style="display:none"></div>
+      </div>
+      <div class="partner-details">
+        <div class="partner-name" id="partnerNameEl">รอการเชื่อมต่อ...</div>
+        <div class="partner-meta">
+          <span id="partnerBattery">🔋 -</span>
+          <span id="partnerSpeed" style="display:none">🚗 -</span>
+          <span id="partnerLastSeen">⏱ -</span>
+        </div>
+      </div>
+      <div class="partner-status-badge" id="partnerStatusBadge">-</div>
+    </div>
+    <div class="partner-info" id="waitingCard">
+      <div style="color:var(--text2);font-size:14px;text-align:center;width:100%">
+        💌 แชร์ Room ID ให้อีกฝ่ายเข้าร่วม
+      </div>
+    </div>
+  </div>
+
+  <!-- SPEED DISPLAY -->
+  <div class="speed-display" id="speedDisplay">
+    <div class="speed-num" id="speedNum">0</div>
+    <div class="speed-unit">KM/H</div>
+  </div>
+
+  <!-- BOTTOM PANEL -->
+  <div class="bottom-panel">
+    <div class="my-status-row" id="statusChips">
+      <!-- filled by JS -->
+    </div>
+    <div class="my-info-bar">
+      <div class="my-avatar" id="myAvatarEl">😊</div>
+      <div class="my-details">
+        <div class="my-name" id="myNameDisplay">-</div>
+        <div class="my-meta">
+          <span id="myBatteryDisplay">🔋 -</span>
+          <span id="mySpeedDisplay" style="display:none">🚗 0 km/h</span>
+          <span id="myLastUpdate" style="color:var(--text3)">กำลังระบุตำแหน่ง...</span>
+        </div>
+      </div>
+      <div class="action-btns">
+        <div class="action-btn find" onclick="ringPartner()" title="หาโทรศัพท์">🔔</div>
+        <div class="action-btn locate" onclick="centerOnPartner()" title="ไปหาคู่">💕</div>
+        <div class="action-btn sos" onclick="sendSOS()" title="SOS">🆘</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- TOAST -->
+<div class="toast" id="toast">
+  <div class="toast-icon" id="toastIcon"></div>
+  <div class="toast-title" id="toastTitle"></div>
+  <div class="toast-msg" id="toastMsg"></div>
+</div>
+
+<!-- GEOFENCE MODAL -->
+<div class="modal-overlay" id="geofenceModal" onclick="closeGeofenceModal(event)">
+  <div class="modal">
+    <div class="modal-handle"></div>
+    <div class="modal-title">📍 ตั้งพื้นที่แจ้งเตือน</div>
+    <div class="geofence-list">
+      <div class="geofence-item">
+        <div class="geofence-icon">🏠</div>
+        <div class="geofence-info">
+          <div class="geofence-name">บ้าน</div>
+          <div class="geofence-addr" id="homeAddr">ยังไม่ได้ตั้งค่า — กด "บันทึกจุดนี้"</div>
+        </div>
+        <div class="geofence-toggle" id="homeToggle" onclick="toggleGeofence('home')"></div>
+      </div>
+      <div class="geofence-item">
+        <div class="geofence-icon">💼</div>
+        <div class="geofence-info">
+          <div class="geofence-name">ที่ทำงาน</div>
+          <div class="geofence-addr" id="workAddr">ยังไม่ได้ตั้งค่า — กด "บันทึกจุดนี้"</div>
+        </div>
+        <div class="geofence-toggle" id="workToggle" onclick="toggleGeofence('work')"></div>
+      </div>
+    </div>
+    <button class="btn btn-primary" onclick="saveGeofencePoint('home')" style="margin-bottom:8px;">
+      🏠 บันทึกตำแหน่งปัจจุบันเป็น บ้าน
+    </button>
+    <button class="btn btn-secondary" onclick="saveGeofencePoint('work')">
+      💼 บันทึกตำแหน่งปัจจุบันเป็น ที่ทำงาน
+    </button>
+  </div>
+</div>
+
+<!-- RING ALERT (hidden audio workaround) -->
+<audio id="ringAudio" loop>
+  <source src="data:audio/wav;base64,UklGRnoGAABXQVZFZm10IBAAAA..." type="audio/wav">
+</audio>
+
+<script type="module">
+import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
+import { getDatabase, ref, set, onValue, update, onDisconnect, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-database.js";
+
+// ===== FIREBASE CONFIG =====
+const firebaseConfig = {
+  apiKey: "AIzaSyA86ykFqfbDs9kK7imTi2xeY7ZECVInSy8",
+  authDomain: "couples-tracker-d20b9.firebaseapp.com",
+  databaseURL: "https://couples-tracker-d20b9-default-rtdb.asia-southeast1.firebasedatabase.app",
+  projectId: "couples-tracker-d20b9",
+  storageBucket: "couples-tracker-d20b9.firebasestorage.app",
+  messagingSenderId: "542150205472",
+  appId: "1:542150205472:web:2a4fbe8850764869321c45"
+};
+
+const firebaseApp = initializeApp(firebaseConfig);
+const db = getDatabase(firebaseApp);
+
+// ===== STATE =====
+let state = {
+  roomId: null,
+  myId: null,
+  partnerId: null,
+  myName: '',
+  myEmoji: '😊',
+  myLat: null,
+  myLng: null,
+  mySpeed: 0,
+  myBattery: null,
+  myStatus: 'home',
+  partnerLat: null,
+  partnerLng: null,
+  partnerOnline: false,
+  geofences: { home: null, work: null },
+  geofenceEnabled: { home: false, work: false },
+  watchId: null,
+  updateInterval: null,
+  lastGeofenceStatus: {},
+  isRinging: false,
+  map: null,
+  myMarker: null,
+  partnerMarker: null,
+  myAccCircle: null,
+};
+
+// ===== EMOJIS =====
+const EMOJIS = ['😊','🥰','😎','🐱','🐶','🦊','🐼','🌸','⭐','🔥','💎','🎀'];
+const STATUSES = [
+  { id: 'home', icon: '🏠', label: 'อยู่บ้าน' },
+  { id: 'work', icon: '💼', label: 'ที่ทำงาน' },
+  { id: 'driving', icon: '🚗', label: 'ขับรถ' },
+  { id: 'transit', icon: '🚇', label: 'เดินทาง' },
+  { id: 'food', icon: '🍜', label: 'กินข้าว' },
+  { id: 'sleep', icon: '😴', label: 'นอนหลับ' },
+  { id: 'gym', icon: '💪', label: 'ออกกำลัง' },
+];
+
+// ===== INIT =====
+document.getElementById('loading').classList.add('hidden');
+setupEmojiPicker();
+setupStatusChips();
+
+function setupEmojiPicker() {
+  const container = document.getElementById('emojiPicker');
+  EMOJIS.forEach(e => {
+    const el = document.createElement('div');
+    el.textContent = e;
+    el.style.cssText = 'font-size:26px;cursor:pointer;padding:4px;border-radius:8px;transition:transform .1s;border:2px solid transparent;';
+    el.onclick = () => {
+      document.querySelectorAll('#emojiPicker div').forEach(d => d.style.borderColor = 'transparent');
+      el.style.borderColor = '#ff7dcd';
+      state.myEmoji = e;
+      document.getElementById('myAvatarEl').textContent = e;
+    };
+    if (e === '😊') { el.style.borderColor = '#ff7dcd'; }
+    container.appendChild(el);
+  });
+}
+
+function setupStatusChips() {
+  const container = document.getElementById('statusChips');
+  STATUSES.forEach(s => {
+    const chip = document.createElement('div');
+    chip.className = 'status-chip' + (s.id === 'home' ? ' active' : '');
+    chip.id = 'chip-' + s.id;
+    chip.innerHTML = `${s.icon} ${s.label}`;
+    chip.onclick = () => setStatus(s.id);
+    container.appendChild(chip);
+  });
+}
+
+// ===== ROOM =====
+window.createRoom = function() {
+  const name = document.getElementById('myName').value.trim();
+  if (!name) { showToast('⚠️','ใส่ชื่อด้วยนะ',''); return; }
+  const roomId = Math.random().toString(36).substring(2, 8).toUpperCase();
+  enterApp(roomId, 'A', name);
+};
+
+window.joinRoom = function() {
+  const name = document.getElementById('myName').value.trim();
+  const roomId = document.getElementById('roomIdInput').value.trim().toUpperCase();
+  if (!name) { showToast('⚠️','ใส่ชื่อด้วยนะ',''); return; }
+  if (!roomId) { showToast('⚠️','ใส่ Room ID ด้วยนะ',''); return; }
+  enterApp(roomId, 'B', name);
+};
+
+function enterApp(roomId, myId, name) {
+  state.roomId = roomId;
+  state.myId = myId;
+  state.partnerId = myId === 'A' ? 'B' : 'A';
+  state.myName = name;
+
+  document.getElementById('splash').classList.add('hidden');
+  document.getElementById('app').classList.remove('hidden');
+  document.getElementById('roomIdDisplay').textContent = roomId;
+  document.getElementById('myNameDisplay').textContent = name;
+  document.getElementById('myAvatarEl').textContent = state.myEmoji;
+
+  initMap();
+  startTracking();
+  listenPartner();
+  listenRingAlert();
+  listenSOS();
+  getBattery();
+}
+
+// ===== MAP =====
+function initMap() {
+  state.map = L.map('map', { zoomControl: false, attributionControl: false }).setView([13.75, 100.5], 13);
+  L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(state.map);
+
+  // Custom pink marker for me
+  const myIcon = L.divIcon({
+    html: `<div style="width:40px;height:40px;border-radius:50%;background:linear-gradient(135deg,#a855f7,#7c3aed);display:flex;align-items:center;justify-content:center;font-size:20px;border:3px solid #fff;box-shadow:0 4px 16px rgba(168,85,247,0.6);">${state.myEmoji}</div>`,
+    iconSize: [40, 40], iconAnchor: [20, 20], className: ''
+  });
+
+  state.myMarker = L.marker([13.75, 100.5], { icon: myIcon }).addTo(state.map);
+
+  const partnerIcon = L.divIcon({
+    html: `<div id="partnerMarkerInner" style="width:40px;height:40px;border-radius:50%;background:linear-gradient(135deg,#ff7dcd,#d94faa);display:flex;align-items:center;justify-content:center;font-size:20px;border:3px solid #fff;box-shadow:0 4px 16px rgba(255,125,205,0.6);">💕</div>`,
+    iconSize: [40, 40], iconAnchor: [20, 20], className: ''
+  });
+  state.partnerMarker = L.marker([13.75, 100.5], { icon: partnerIcon, opacity: 0 }).addTo(state.map);
+}
+
+// ===== TRACKING =====
+function startTracking() {
+  if (!navigator.geolocation) { showToast('❌','GPS ไม่รองรับ',''); return; }
+
+  navigator.geolocation.getCurrentPosition(pos => {
+    updateMyPosition(pos);
+    state.map.setView([pos.coords.latitude, pos.coords.longitude], 15);
+  }, err => console.warn(err), { enableHighAccuracy: true });
+
+  state.watchId = navigator.geolocation.watchPosition(
+    pos => updateMyPosition(pos),
+    err => console.warn(err),
+    { enableHighAccuracy: true, maximumAge: 5000, timeout: 15000 }
+  );
+}
+
+function updateMyPosition(pos) {
+  const { latitude: lat, longitude: lng, speed, accuracy } = pos.coords;
+  const speedKmh = speed ? Math.round(speed * 3.6) : 0;
+
+  state.myLat = lat; state.myLng = lng; state.mySpeed = speedKmh;
+
+  // Update map
+  state.myMarker.setLatLng([lat, lng]);
+  if (state.myAccCircle) state.map.removeLayer(state.myAccCircle);
+  state.myAccCircle = L.circle([lat, lng], {
+    radius: accuracy, color: '#a855f7', fillColor: '#a855f7',
+    fillOpacity: 0.08, weight: 1
+  }).addTo(state.map);
+
+  // Speed display
+  const speedEl = document.getElementById('speedDisplay');
+  if (speedKmh > 5) {
+    speedEl.classList.add('visible');
+    document.getElementById('speedNum').textContent = speedKmh;
+    document.getElementById('mySpeedDisplay').style.display = 'flex';
+    document.getElementById('mySpeedDisplay').textContent = `🚗 ${speedKmh} km/h`;
+    if (speedKmh > 20 && state.myStatus !== 'driving') autoSetStatus('driving');
+  } else {
+    speedEl.classList.remove('visible');
+    document.getElementById('mySpeedDisplay').style.display = 'none';
+    checkGeofenceStatus(lat, lng);
+  }
+
+  document.getElementById('myLastUpdate').textContent = 'ตอนนี้';
+  pushMyData(lat, lng, speedKmh);
+}
+
+function autoSetStatus(statusId) {
+  setStatus(statusId);
+}
+
+function setStatus(statusId) {
+  state.myStatus = statusId;
+  document.querySelectorAll('.status-chip').forEach(c => c.classList.remove('active'));
+  const chip = document.getElementById('chip-' + statusId);
+  if (chip) chip.classList.add('active');
+  pushMyData(state.myLat, state.myLng, state.mySpeed);
+}
+window.setStatus = setStatus;
+
+// ===== FIREBASE PUSH =====
+function pushMyData(lat, lng, speed) {
+  if (!state.roomId || !lat) return;
+  const myRef = ref(db, `rooms/${state.roomId}/users/${state.myId}`);
+  const statusLabel = STATUSES.find(s => s.id === state.myStatus);
+  update(myRef, {
+    name: state.myName,
+    emoji: state.myEmoji,
+    lat, lng, speed,
+    battery: state.myBattery,
+    status: state.myStatus,
+    statusLabel: statusLabel ? statusLabel.icon + ' ' + statusLabel.label : '-',
+    lastSeen: Date.now(),
+    online: true,
+  });
+  onDisconnect(myRef).update({ online: false, lastSeen: Date.now() });
+}
+
+// ===== LISTEN PARTNER =====
+function listenPartner() {
+  const partnerRef = ref(db, `rooms/${state.roomId}/users/${state.partnerId}`);
+  onValue(partnerRef, snap => {
+    const data = snap.val();
+    if (!data) return;
+
+    state.partnerLat = data.lat;
+    state.partnerLng = data.lng;
+    state.partnerOnline = data.online;
+
+    // Show partner card
+    document.getElementById('waitingCard').style.display = 'none';
+    document.getElementById('partnerCard').style.display = 'flex';
+
+    document.getElementById('partnerEmojiEl').textContent = data.emoji || '💕';
+    document.getElementById('partnerNameEl').textContent = data.name || 'คู่ของคุณ';
+    document.getElementById('partnerStatusBadge').textContent = data.statusLabel || '-';
+    document.getElementById('partnerOnlineDot').style.display = data.online ? 'block' : 'none';
+
+    // Battery
+    if (data.battery !== null && data.battery !== undefined) {
+      const pct = Math.round(data.battery * 100);
+      const color = pct > 20 ? '#4fffb0' : '#ff4f7b';
+      document.getElementById('partnerBattery').innerHTML = `<span style="color:${color}">🔋 ${pct}%</span>`;
+    }
+
+    // Speed
+    if (data.speed > 5) {
+      document.getElementById('partnerSpeed').style.display = 'flex';
+      document.getElementById('partnerSpeed').textContent = `🚗 ${data.speed} km/h`;
+    } else {
+      document.getElementById('partnerSpeed').style.display = 'none';
+    }
+
+    // Last seen
+    if (data.lastSeen) {
+      const diff = Math.floor((Date.now() - data.lastSeen) / 1000);
+      let lastSeenText;
+      if (diff < 30) lastSeenText = 'เมื่อกี้';
+      else if (diff < 60) lastSeenText = `${diff} วิที่แล้ว`;
+      else if (diff < 3600) lastSeenText = `${Math.floor(diff/60)} นาทีที่แล้ว`;
+      else lastSeenText = `${Math.floor(diff/3600)} ชม.ที่แล้ว`;
+      document.getElementById('partnerLastSeen').textContent = `⏱ ${lastSeenText}`;
+    }
+
+    // Update partner marker
+    if (data.lat && data.lng) {
+      state.partnerMarker.setLatLng([data.lat, data.lng]);
+      state.partnerMarker.setOpacity(1);
+      const inner = document.getElementById('partnerMarkerInner');
+      if (inner) inner.textContent = data.emoji || '💕';
+    }
+  });
+
+  // Update lastSeen text every 30s
+  setInterval(() => {
+    const badge = document.getElementById('partnerLastSeen');
+    // re-read from firebase handled by onValue
+  }, 30000);
+}
+
+// ===== LISTEN RING =====
+function listenRingAlert() {
+  const alertRef = ref(db, `rooms/${state.roomId}/alerts/ring_${state.myId}`);
+  onValue(alertRef, snap => {
+    if (snap.val() === true) {
+      triggerRing();
+      set(alertRef, false);
+    }
+  });
+}
+
+function listenSOS() {
+  const sosRef = ref(db, `rooms/${state.roomId}/alerts/sos_${state.myId}`);
+  onValue(sosRef, snap => {
+    if (snap.val() === true) {
+      showToast('🆘', 'SOS! ฉุกเฉิน!', `${state.partnerId === 'A' ? 'อีกฝ่าย' : 'คู่ของคุณ'} ต้องการความช่วยเหลือ!`);
+      set(sosRef, false);
+      // vibrate
+      if (navigator.vibrate) navigator.vibrate([500,200,500,200,500]);
+    }
+  });
+}
+
+// ===== ACTIONS =====
+window.ringPartner = function() {
+  const alertRef = ref(db, `rooms/${state.roomId}/alerts/ring_${state.partnerId}`);
+  set(alertRef, true);
+  showToast('🔔', 'ส่งสัญญาณแล้ว!', 'โทรศัพท์อีกฝ่ายจะดัง');
+};
+
+window.sendSOS = function() {
+  if (!confirm('⚠️ ส่ง SOS ฉุกเฉินจริงๆ?')) return;
+  const sosRef = ref(db, `rooms/${state.roomId}/alerts/sos_${state.partnerId}`);
+  set(sosRef, true);
+  showToast('🆘', 'ส่ง SOS แล้ว!', 'อีกฝ่ายได้รับการแจ้งเตือน');
+  document.querySelector('.action-btn.sos').classList.add('sos-active');
+  setTimeout(() => document.querySelector('.action-btn.sos').classList.remove('sos-active'), 3000);
+};
+
+window.centerOnPartner = function() {
+  if (state.partnerLat && state.partnerLng) {
+    state.map.flyTo([state.partnerLat, state.partnerLng], 16, { duration: 1.5 });
+  } else {
+    showToast('💕', 'ยังไม่เจอตำแหน่ง', 'รออีกฝ่ายเชื่อมต่อก่อนนะ');
+  }
+};
+
+window.copyRoomId = function() {
+  navigator.clipboard.writeText(state.roomId).then(() => {
+    showToast('🔗', 'คัดลอกแล้ว!', `Room ID: ${state.roomId}`);
+  }).catch(() => {
+    showToast('🔗', `Room ID: ${state.roomId}`, 'คัดลอกด้วยตัวเองนะ');
+  });
+};
+
+window.leaveRoom = function() {
+  if (!confirm('ออกจาก Room?')) return;
+  if (state.watchId) navigator.geolocation.clearWatch(state.watchId);
+  location.reload();
+};
+
+// ===== RING =====
+function triggerRing() {
+  showToast('🔔', 'มีคนหาคุณอยู่!', 'อีกฝ่ายกำลังหาโทรศัพท์คุณ');
+  if (navigator.vibrate) navigator.vibrate([300,100,300,100,300,100,300]);
+  // Oscillator beep
+  try {
+    const ctx = new (window.AudioContext || window.webkitAudioContext)();
+    const beep = (t, freq, dur) => {
+      const o = ctx.createOscillator();
+      const g = ctx.createGain();
+      o.connect(g); g.connect(ctx.destination);
+      o.frequency.value = freq;
+      g.gain.setValueAtTime(0.3, t);
+      g.gain.exponentialRampToValueAtTime(0.001, t + dur);
+      o.start(t); o.stop(t + dur);
+    };
+    for (let i = 0; i < 6; i++) beep(ctx.currentTime + i * 0.3, 880, 0.25);
+  } catch(e) {}
+}
+
+// ===== BATTERY =====
+async function getBattery() {
+  try {
+    const bat = await navigator.getBattery();
+    state.myBattery = bat.level;
+    updateBatteryUI(bat.level);
+    bat.addEventListener('levelchange', () => {
+      state.myBattery = bat.level;
+      updateBatteryUI(bat.level);
+      pushMyData(state.myLat, state.myLng, state.mySpeed);
+    });
+  } catch(e) {}
+}
+
+function updateBatteryUI(level) {
+  const pct = Math.round(level * 100);
+  const color = pct > 20 ? '#4fffb0' : '#ff4f7b';
+  document.getElementById('myBatteryDisplay').innerHTML = `<span style="color:${color}">🔋 ${pct}%</span>`;
+}
+
+// ===== GEOFENCE =====
+const GEOFENCE_RADIUS = 200; // meters
+
+function checkGeofenceStatus(lat, lng) {
+  ['home', 'work'].forEach(type => {
+    const gf = state.geofences[type];
+    if (!gf || !state.geofenceEnabled[type]) return;
+    const dist = getDistance(lat, lng, gf.lat, gf.lng);
+    const inside = dist < GEOFENCE_RADIUS;
+    const wasInside = state.lastGeofenceStatus[type];
+
+    if (inside && !wasInside) {
+      const label = type === 'home' ? 'บ้าน' : 'ที่ทำงาน';
+      pushGeofenceAlert(type, 'arrive', label);
+      setStatus(type);
+    } else if (!inside && wasInside) {
+      const label = type === 'home' ? 'บ้าน' : 'ที่ทำงาน';
+      pushGeofenceAlert(type, 'leave', label);
+    }
+    state.lastGeofenceStatus[type] = inside;
+  });
+}
+
+function pushGeofenceAlert(type, action, label) {
+  const alertRef = ref(db, `rooms/${state.roomId}/alerts/geo_${state.partnerId}`);
+  set(alertRef, { type, action, label, ts: Date.now() });
+}
+
+// Listen geofence alerts for me
+function listenGeofenceAlerts() {
+  const alertRef = ref(db, `rooms/${state.roomId}/alerts/geo_${state.myId}`);
+  onValue(alertRef, snap => {
+    const d = snap.val();
+    if (!d || !d.ts) return;
+    if (Date.now() - d.ts > 10000) return; // ignore old
+    const action = d.action === 'arrive' ? 'ถึง' : 'ออกจาก';
+    showToast('📍', `อีกฝ่าย${action}${d.label}แล้ว!`, '');
+    set(alertRef, null);
+  });
+}
+
+function getDistance(lat1, lng1, lat2, lng2) {
+  const R = 6371000;
+  const dLat = (lat2 - lat1) * Math.PI / 180;
+  const dLng = (lng2 - lng1) * Math.PI / 180;
+  const a = Math.sin(dLat/2)**2 + Math.cos(lat1*Math.PI/180)*Math.cos(lat2*Math.PI/180)*Math.sin(dLng/2)**2;
+  return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+}
+
+window.openGeofenceModal = function() {
+  document.getElementById('geofenceModal').classList.add('show');
+};
+window.closeGeofenceModal = function(e) {
+  if (e.target === document.getElementById('geofenceModal'))
+    document.getElementById('geofenceModal').classList.remove('show');
+};
+
+window.saveGeofencePoint = function(type) {
+  if (!state.myLat) { showToast('⚠️','รอ GPS ก่อนนะ',''); return; }
+  state.geofences[type] = { lat: state.myLat, lng: state.myLng };
+  localStorage.setItem(`gf_${type}`, JSON.stringify(state.geofences[type]));
+  const label = type === 'home' ? '🏠 บ้าน' : '💼 ที่ทำงาน';
+  document.getElementById(type + 'Addr').textContent = `บันทึกแล้ว (${state.myLat.toFixed(4)}, ${state.myLng.toFixed(4)})`;
+  showToast('✅', `บันทึก${label}แล้ว!`, 'จะแจ้งเตือนอัตโนมัติ');
+  document.getElementById('geofenceModal').classList.remove('show');
+};
+
+window.toggleGeofence = function(type) {
+  state.geofenceEnabled[type] = !state.geofenceEnabled[type];
+  document.getElementById(type + 'Toggle').classList.toggle('on', state.geofenceEnabled[type]);
+};
+
+// Load saved geofences
+['home','work'].forEach(type => {
+  const saved = localStorage.getItem(`gf_${type}`);
+  if (saved) {
+    state.geofences[type] = JSON.parse(saved);
+    document.getElementById(type + 'Addr').textContent = `บันทึกแล้ว`;
+  }
+});
+
+// ===== TOAST =====
+window.showToast = function(icon, title, msg) {
+  const t = document.getElementById('toast');
+  document.getElementById('toastIcon').textContent = icon;
+  document.getElementById('toastTitle').textContent = title;
+  document.getElementById('toastMsg').textContent = msg;
+  t.classList.add('show');
+  clearTimeout(window._toastTimer);
+  window._toastTimer = setTimeout(() => t.classList.remove('show'), 3500);
+};
+
+// Update last seen every 10s
+setInterval(() => {
+  if (!state.roomId) return;
+  pushMyData(state.myLat, state.myLng, state.mySpeed);
+}, 10000);
+</script>
+</body>
+</html>
